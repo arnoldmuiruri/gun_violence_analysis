@@ -66,11 +66,19 @@ The analysis utilizes two primary data sources:
    - Created using `leaflet` and `sf` packages
    - Incorporated geographic visualization using `geofacet`
 
-![image](https://github.com/user-attachments/assets/21ddceb1-7ecd-4db4-a429-c1636867c574)
+![README-unnamed-chunk-5-1](https://github.com/user-attachments/assets/2b02dfb7-9e66-4c9d-8a49-8b37e7f37707)
+![README-unnamed-chunk-4-1](https://github.com/user-attachments/assets/a617cff6-082c-41c9-894c-5cf4632dde61)
+![README-unnamed-chunk-42-1](https://github.com/user-attachments/assets/1e2b0025-c02c-44d8-8304-8a9521cae8be)
+![README-unnamed-chunk-41-1](https://github.com/user-attachments/assets/668c1d71-2506-41d3-b304-bc87f63e0159)
+![README-unnamed-chunk-39-1](https://github.com/user-attachments/assets/44971927-c79f-4859-acc1-fc9a225131fc)
+![README-unnamed-chunk-33-1](https://github.com/user-attachments/assets/737b5a12-94f0-4a80-87fa-ed74c0f2ab15)
+![README-unnamed-chunk-31-1](https://github.com/user-attachments/assets/15f79fee-d8ee-44d9-810f-9923ae5d885e)
+![README-unnamed-chunk-26-1](https://github.com/user-attachments/assets/008dea46-ca07-41cf-b1af-945e9676ad2a)
+![README-unnamed-chunk-24-1](https://github.com/user-attachments/assets/b41b4b76-cf73-4cbe-8576-76a4c772aa62)
+![README-unnamed-chunk-23-1](https://github.com/user-attachments/assets/7333ccac-f952-4d05-bd57-78e243461f6e)
+![README-unnamed-chunk-21-1](https://github.com/user-attachments/assets/1f5857bc-c799-4adb-aa4d-f7ae41e83268)
+![README-unnamed-chunk-11-1](https://github.com/user-attachments/assets/364022d2-41a5-4b35-8571-d57cc1068bc4)
 
-![image](https://github.com/user-attachments/assets/a3783bf3-c41e-413e-a595-81eb7e97bfb1)
-
-![image](https://github.com/user-attachments/assets/ef0fd641-cc98-40e7-90ad-559655c2bb9b)
 
 
 ## Dependencies
