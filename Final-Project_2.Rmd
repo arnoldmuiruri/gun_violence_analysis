@@ -1,0 +1,1045 @@
+---
+title: "Final Project"
+author: "Arnold Muiruri , Cyril Owuor"
+date: "`r Sys.Date()`"
+output: 
+  rmdformats::html_clean:
+    toc: true
+    toc_float: true
+
+---
+
+```{r setup, include=FALSE, error = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+\
+
+# Analyzing the Gun Violence in the US between 2013 and 2018
+
+\
+
+## 1. Introduction
+
+\
+
+In this project, we intend to conduct a thorough analysis of the gun violence
+data to gain a better understanding of the underlying patterns and trends. We 
+aim to achieve this goal by utilizing gun violence data sourced from
+Gun Violence Archive alongside corresponding US Census data.
+
+\
+
+By merging and analyzing these datasets, we seek to provide a comprehensive 
+overview of the nature of gun violence in the US, focusing solely on empirical
+observations and statistical trends.
+
+\
+
+### Loading the necessary libraries
+
+\
+
+To facilitate our analysis, we begin by loading essential libraries using the 
+`pacman` package. These libraries encompass a wide range of functionalities, 
+including data manipulation, visualization, and statistical analysis. We then 
+import the gun violence dataset and the US census data using fread from the 
+`data.table` package. These datasets will serve as the foundation for our 
+exploration and insights into gun violence trends.
+
+
+\
+
+```{r, libraries, message=FALSE}
+
+# Load necessary libraries
+if(!require(pacman)) install.packages("pacman") 
+pacman::p_load(
+  tidyverse,    # for data manipulation
+  data.table,   # for reading data tables
+  skimr,        # for checking missingness of data
+  gt,           # for creating tables
+  rmdformats,   # for changing format of the html document
+  gtExtras,     # theming package for gt tables
+  lubridate,    # for date manipulation
+  sf,           # for creation of spatial visualization
+  naniar,       # for visualizing missingness of data
+  stringr,      # for string manipulation
+  geofacet,     # for data visualization of plots in US shapes
+  remotes,      # for installing packages from github
+  leaflet,      # for mapping casualty data on map
+  scales,       # for scaling plot axes
+  patchwork,    # for combining multiple plots
+  htmltools     # for HTML manipulation
+)
+
+
+```
+\
+
+We shall be setting a universal theme for the plots.
+
+\
+
+```{r}
+ggplot2::theme_set(ggthemes::theme_few())
+```
+
+\
+
+### Importing the data to R.
+
+We shall import the gun data and US census data using `fread` from the `data.table` package
+
+\
+```{r}
+
+## Reading the gun data
+
+gun_data <- fread("Data/gunViolenceGeo.csv ")
+
+glimpse(gun_data)
+
+```
+
+
+```{r}
+
+## Reading the us county data
+
+us_census_data<-fread("https://raw.githubusercontent.com/dilernia/STA418-518/main/Data/census_data_county_2009-2021.csv")
+
+glimpse(us_census_data)
+
+```
+
+\
+\
+
+##  2. Data Dictionary 
+
+Let's first understand the variables in our datasets by creating data dictionaries. These dictionaries describe each variable's meaning, data type, and class for both the gun violence data and the US census data. Having these documentation resources will help ensure clarity during our analysis.
+
+\
+\
+```{r, dictionary_creation_gun_data}
+
+## Dictionary gun data set
+
+description_gun_data<-c(
+  "geographic region ID with the first 2 digits being the state Federal Information Processing Standard (FIPS) code and the last 3 digits the county FIPS code","gunviolencearchive.org ID for incident","date of occurrence","state","city or county","address where incident took place","number of people killed","number of people injured","link to gunviolencearchive.org webpage containing details of incident","link to online news story concerning incident","ignore, always False","Congressional district","gun stolen or not, e.g. 'Unknown' or 'Stolen'","description of gun type","list of incident characteristics","latitude of location","description of location where incident took place","longitude of location","number of guns involved","additional notes about the incident","participant age (in years)","description of participant age group, one of 'Adult 18+', 'Teen 12-17', or 'Child 0-11'","participant sex, one of 'Male' or 'Female'","participant name","relationship of participant to other participants","outcome, one of 'Arrested', 'Killed', 'Injured', or 'Unharmed'","participant category being 'Victim' or 'Subject-Suspect'","links to online news stories concerning incident","state house district","state senate district","full address")
+
+dataDictionary_gun_data <- tibble(Variable = colnames(gun_data),
+                         Description = description_gun_data,
+                         Type = map_chr(gun_data, .f = function(x){typeof(x)[1]}),
+                         Class = map_chr(gun_data, .f = function(x){class(x)[1]}))
+knitr::kable(dataDictionary_gun_data)
+```
+
+\
+
+```{r, dictionary_creation_census_data}
+
+## Dictionary census data set
+
+description_census_data<-c("geographic region ID with the first 2 digits being the state Federal Information Processing Standard (FIPS) code ","geographic region","year","population","median income in dollars","median monthly housing costs for homeowners in dollars","median monthly rent costs for renters in dollars","proportion of people who are female","proportion of people who are male","proportion of people 25 and older living in poverty, defined by the Census Bureau as having an income below the poverty threshold for their family size."
+)
+
+dataDictionary_census_data <- tibble(Variable = colnames(us_census_data),
+                         Description = description_census_data,
+                         Type = map_chr(us_census_data, .f = function(x){typeof(x)[1]}),
+                         Class = map_chr(us_census_data, .f = function(x){class(x)[1]}))
+knitr::kable(dataDictionary_census_data)
+
+
+```
+
+\
+
+## 3. Data Cleaning
+### 3.1. Gun Data
+
+\
+
+```{r, data exploration_gun_data}
+
+## Checking the missingness of the data using skim from the skimr package
+## First converting the date 
+
+gun_data$date<-lubridate::as_date(gun_data$date)
+
+skim(gun_data)
+
+```
+\
+```{r}
+
+# using naniar to visualize the data missingness
+
+gg_miss_var(gun_data, show_pct = TRUE)
+
+
+```
+```{r, fig.height=7, fig.width=12}
+# Using gg_miss_fct to visualize data
+
+gun_data |>
+  dplyr::select(state, n_killed, n_injured, participant_type,participant_gender,participant_age_group) |>
+  gg_miss_fct(fct = state)
+```
+
+
+\
+
+Key things to note from missingness of the data set
+
+* The `participant_relationship`, `location_description`, and `participant_name` variables had completion rates of less than 50%.
+* The columns `state_house_district` and `state_senate_district` are also not important for our analysis
+* We intend to drop the mentioned columns since they are not important for our analysis
+\
+
+```{r}
+## Dropping the columns
+
+gun_data<-gun_data |>
+  dplyr::select(-c(participant_relationship, 
+                   location_description,
+                   participant_name,
+                   state_house_district,
+                   state_senate_district
+                   ))
+```
+\
+
+Checking duplication of rows
+
+```{r}
+duplicated_rows_gun_data<-gun_data[duplicated(gun_data),]
+duplicated_rows_gun_data
+```
+\
+
+A key thing to note is that the `participant_age` column is parsed as a character. This is because the data contains the ages of several participants. However, a cursory look at the column shows that there are missing values for the ages. There might be several reasons for this: 
+
+* Data for the particular participant was not recorded correctly
+* The age of some participants were unknown hence were not recorded
+
+A better metric may be the use of the `participant_age_group` since there are fewer missing values for this column. We will create new columns to include the count of the different age groups. The columns shall be `participant_adult`, `participant_teen` and `participant_child`
+
+\
+
+#### a. String manipulation
+
+\
+
+The library `stringr` will be used to separate the string combinations
+
+\
+
+```{r}
+gun_data<-gun_data |>
+  mutate(
+    participant_child = str_count(participant_age_group, "Child"),
+    participant_teen = str_count(participant_age_group, "Teen"),
+    participant_adult = str_count(participant_age_group, "Adult"))
+```
+\
+
+We should also do the same for `participant_gender`, `participant_status`, and `participant_type` columns.
+For `participant_type`, we can look at the unharmed and arrested individuals since the number of killed and injured 
+individuals was already captured.
+
+\
+
+```{r}
+
+## Counting the gender (Male or Female)
+gun_data<-gun_data |>
+  mutate(
+    participant_males = str_count(participant_gender,"Male"),
+    participant_females = str_count(participant_gender,"Female")
+  )
+
+## Counting the participant type (Either victim or suspect)
+
+gun_data<-gun_data |>
+  mutate(
+    participant_victim = str_count(participant_type,"Victim"),
+    participant_suspect = str_count(participant_type,"Subject-Suspect")
+  )
+
+
+## Adding a n_unharmed column from the participant 
+
+gun_data<-gun_data|>
+  mutate(
+    n_unharmed = str_count(participant_status,"Unharmed")
+  )
+
+```
+
+
+
+\
+
+### 3.2 Data Cleaning (US Census Data)
+
+\
+
+Checking for duplicated rows in the census data set
+
+\
+```{r}
+duplicated_rows_census_data<-us_census_data[duplicated(us_census_data),]
+duplicated_rows_census_data
+```
+\
+
+There aren't any duplicated rows in this data set
+\
+
+Next, we will look at the US Census data to check completeness
+
+\
+
+```{r, data exploration_census_data}
+
+# Converting the year column to date
+
+us_census_data$year<-lubridate::make_date(us_census_data$year)
+us_census_data$year<-lubridate::year(us_census_data$year)
+
+```
+
+\
+
+Visualizing the missingness of the data using `naniar`
+
+\
+```{r}
+gg_miss_var(us_census_data, show_pct = TRUE)
+
+```
+
+
+
+\
+
+From the graph above, this data set is mostly complete 
+
+\
+
+#### a. String Manipulation
+
+The state information will be extracted from the `county_state` column using a regular expression pattern. This extracted state data will then be utilized to calculate the casualty rates per 100,000 population for each state. 
+
+\
+
+```{r}
+
+us_census_data<-us_census_data|>
+  mutate(
+  county = str_extract(county_state, "^[^,]+"),
+  state = str_extract(county_state, "(?<=, ).*")
+)
+
+```
+\
+\
+
+### b. Merging the data sets
+
+\
+
+The extracted state data will  be utilized to calculate the casualty rates per 100,000 population for each state.
+
+\
+
+The process involves merging the `gun_data` with the `us_census_data` based on the state information. After the merge, the data is grouped by state, the casualties are summed, and the total is divided by the state's population after scaling it down by a factor of 100,000.
+
+\
+```{r}
+
+grouping_states<-gun_data|>
+  group_by(state,year = year(date))|>
+  summarize(total_injured = sum(n_injured),
+            total_killed = sum(n_killed))
+
+```
+
+```{r}
+
+population_group<-us_census_data |>
+  group_by(state,year)|>
+  summarize(population = sum(population))
+
+```
+
+```{r}
+
+## Adding the population
+
+grouping_states<-grouping_states|>
+  left_join(population_group)
+
+
+```
+
+```{r}
+## Calculating the rates per 100,000
+
+grouping_states<-grouping_states|>
+  mutate(
+    injured_per_100k = total_injured/population * 100000,
+    killed_per_100k = total_killed/population * 100000)
+
+
+```
+
+```{r}
+## Getting the mean per state
+
+mean_states<-grouping_states|>
+  group_by(state)|>
+  summarize(mean_injured_rate = mean(injured_per_100k),
+            mean_kill_rate = mean(killed_per_100k))
+  
+
+
+
+```
+
+
+##  4. Exploratory Data Analysis
+
+### a. Table of summary statistics
+
+#### Exploring summary statistics and other patterns in the `gun_data` dataset
+
+\
+```{r}
+
+## Descriptive statistics of numeric variables
+numerical_variables_gun_data <-gun_data[,c("n_killed", "n_injured", "n_guns_involved", 
+                            "participant_child", "participant_teen", 
+                            "participant_adult", "participant_males",
+                            "participant_females", "participant_victim", 
+                            "participant_suspect", "n_unharmed")]
+
+summary(numerical_variables_gun_data)
+
+```
+
+\
+
+#### Exploring summary statistics and other patterns in the `us_census_data` dataset
+
+\
+
+```{r}
+
+numerical_variables_census<-us_census_data[,c("population","median_income","median_monthly_rent_cost",
+    "median_monthly_home_cost","prop_female","prop_male","prop_poverty" )]
+summary(numerical_variables_census)
+
+```
+\
+\
+
+### b. Visualization of the data
+
+\
+
+```{r}
+
+## Creating a table of the states with highest casualty rates
+
+mean_states|>
+  arrange(desc(mean_injured_rate))|>
+  slice_head(n=15)|>
+  gt()|>
+  cols_label(
+    state = "State",
+    mean_injured_rate = "Injured per 100k",
+    mean_kill_rate = "Killed per 100k"
+  )|>
+  tab_header(
+    title = "Top 15 states with highest injuries/deaths per state between 2013 and 2018"
+  )|>
+  gtExtras::gt_theme_538()
+```
+
+
+
+```{r,fig.width=10,fig.height=10}
+
+## Dumbbell plot of states' casualty rates 
+
+mean_states |>
+  ggplot(aes(x = mean_injured_rate, 
+             y = reorder(state, mean_injured_rate))) +
+  geom_segment(aes(x = 0, 
+                   xend = mean_injured_rate, 
+                   yend = state)) +
+  geom_point(aes(x = mean_injured_rate, 
+                 color = "People Injured"), 
+             size = 4, 
+             alpha = 0.5) +
+  geom_point(aes(x = mean_kill_rate, 
+                 color = "People Killed"), 
+             size = 4, 
+             alpha = 0.5) +
+  scale_alpha_continuous(range = c(0, 1)) +
+  scale_color_manual(values = c("People Injured" = "#192bc2", "People Killed" = "#ff0000"),
+                     guide = guide_legend(title = "Guide")) +
+  labs(
+    x = "Mean Injured Rate",
+    y = "State",
+    caption = "Source: Gun Violence Archive’s website",
+    title = "Gun Violence by State per 100k people between 2013 and 2018"
+  ) 
+```
+\
+
+From the table and graphs presented, it is evident that Washington D.C. and Illinois experienced the highest rates of gun violence casualties compared to other states across the nation. On the other hand, Hawaii and Wyoming had relatively low rates of gun violence incidents
+
+\
+
+Creating a graph of casualty rates over time
+
+```{r,fig.width=10,fig.height=10}
+
+## Grouping the casualty rates by month
+
+grouping_month<-gun_data|>
+  group_by(month = lubridate::floor_date(date,"month"))|>
+  summarize(total_injured = sum(n_injured), total_killed = sum(n_killed))
+
+
+```
+\
+
+
+
+```{r,fig.width=10}
+
+## Creating an area plot of the casualties
+
+grouping_month |>
+  ggplot(aes(x = month)) +  
+  geom_area(aes(y = total_injured, fill = "People Injured"), stat = "identity") +
+  geom_area(aes(y = total_killed, fill = "People Killed"), stat = "identity") +
+  scale_y_continuous(expand = expansion(mult=c(0,0.1)))+
+  scale_fill_viridis_d(option = "plasma")+
+  labs(
+    x = "Month/Year",
+    y = "Frequency",
+    caption = "Source: Gun Violence Archive’s website",
+    title = "Number of gun related injuries/death per month",
+    fill = "Guide"
+  ) 
+
+
+```
+\
+
+It is important to note the significant spike in gun violence incidents observed in 2014 compared to 2013. This discrepancy can be attributed to the Gun Violence Archive website expanding its data collection sources in 2014 and subsequent years, whereas in 2013, the data was sourced from a limited number of sources. 
+
+\
+
+Consequently, the lower incident count in 2013 is likely an underestimation due to the restricted data sources available at the time, rather than an a true reflection of the actual gun violence situation that year.
+
+\
+
+```{r}
+
+## Checking the days in which most casualties occurred
+
+
+grouping_day<-gun_data|>
+  group_by(day = lubridate::wday(date, abbr = FALSE, label = TRUE))|>
+  summarize(total_injured = sum(n_injured), total_killed = sum(n_killed)) |>
+  arrange(desc(total_injured))|>
+  pivot_longer(cols = c(total_injured, total_killed),
+               names_to = "Type",
+               values_to = "Count")
+
+grouping_day|>
+  ggplot(aes(x = day, y = Count, fill = Type)) +  
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  scale_fill_viridis_d(option = "plasma") +
+  labs(
+    x = "Day",
+    y = "Frequency",
+    caption = "Source: Gun Violence Archive’s website",
+    title = "Number of gun-related injuries/death per day",
+    fill = "Guide"
+  ) 
+
+```
+
+\
+
+The graph above displays a noticeable spike in casualties during weekends, which could be attributed to several potential factors;
+\
+
+* Increased availability of leisure time: With more free time available during weekends, individuals may engage in activities involving firearms, such as hunting, target practice, or other recreational activities, potentially increasing the likelihood of accidents or incidents.
+* Increased social activities over the weekend: Weekends are typically associated with more social gatherings, events, and recreational activities, which may involve increased alcohol consumption or other risk-taking behaviors that could lead to incidents involving firearms.
+
+\
+
+```{r}
+## Creating casualty rate visualization for seasons
+
+
+gun_data <- gun_data |>
+  mutate(months = as.integer(format(date, "%m")), 
+         season = cut(months, 
+                      breaks = c(0, 2, 5, 8, 11, 12), 
+                      labels = c("winter", "spring", "summer", "fall", "winter"),
+                      include.lowest = TRUE)
+  )
+```
+
+
+```{r}
+grouping_seasons<-gun_data|>
+  group_by(season)|>
+  summarize("Total injured" = sum(n_injured), "Total killed" = sum(n_killed))|>
+  arrange(desc("Total injured"))|>
+  pivot_longer(cols = c("Total injured", "Total killed"),
+               names_to = "Type",
+               values_to = "Count")
+
+grouping_seasons|>
+  ggplot(aes(x = season, y = Count, fill = Type)) +  
+  geom_bar(stat = "identity", position = "stack") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  scale_fill_viridis_d(option = "plasma") +
+  labs(
+    x = "Season",
+    y = "Frequency",
+    caption = "Source: Gun Violence Archive’s website",
+    title = "Number of gun-related injuries/death per season",
+    fill = "Guide"
+  ) 
+```
+\
+
+The graph reveals a relatively consistent number of casualties across different seasons, with a slight uptick observed during the summer months. This increase in summer casualties could potentially be attributed to increased outdoor activities and social gatherings facilitated by warmer weather conditions.
+
+\
+
+```{r}
+
+## Creating a pie chart to display the age group, gender, harmed and unharmed
+
+
+total_harmed<-sum(gun_data$n_killed, gun_data$n_injured,na.rm = TRUE)
+total_unharmed<-sum(gun_data$n_unharmed,na.rm = TRUE)
+
+total_children<-sum(gun_data$participant_child,na.rm = TRUE)
+total_teen<-sum(gun_data$participant_teen,na.rm = TRUE)
+total_adult<-sum(gun_data$participant_adult,na.rm = TRUE)
+
+total_males<-sum(gun_data$participant_males,na.rm = TRUE)
+total_females<-sum(gun_data$participant_females,na.rm = TRUE)
+
+
+```
+
+
+```{r}
+# Creating pie chart for harmed and unharmed
+harmed_unharmed<-data.frame(status = c("harmed","unharmed"),
+                            count = c(total_harmed, total_unharmed))
+
+chart_harmed<-ggplot(data = harmed_unharmed,
+       aes (x = "",
+             y = count,
+            fill = status))+
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  
+  labs(title = "Pie chart of harmed vs unharmed") +
+  scale_y_continuous(labels = comma)+
+  scale_fill_viridis_d(option = "plasma")+
+  theme_void() 
+```
+
+```{r}
+# Creating pie chart for gender 
+gender<-data.frame(status = c("male","female"),
+                            count = c(total_males,total_females))
+
+chart_gender<-ggplot(data = gender,
+       aes (x = "",
+             y = count,
+            fill = status))+
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  
+  labs(title = "Pie chart of gender") +
+  scale_y_continuous(labels = comma)+
+  scale_fill_viridis_d(option = "plasma")+
+  theme_void() 
+```
+
+
+
+```{r}
+# Creating pie chart for age group
+age_group<-data.frame(status = c("adult","teen","child"),
+                            count = c(total_adult, total_teen,total_children))
+
+chart_age<-ggplot(data = age_group,
+       aes (x = "",
+             y = count,
+            fill = status))+
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  
+  labs(title = "Pie chart of age group") +
+  scale_y_continuous(labels = comma)+
+  scale_fill_viridis_d(option = "plasma")+
+  theme_void() 
+```
+
+
+```{r, fig.width=10}
+## Combining  the graphs together
+chart_age + chart_gender  + chart_harmed 
+
+```
+
+\
+
+The first pie chart clearly shows that adults constitute the largest segment, significantly overshadowing other age groups. 
+
+\
+
+The second pie chart  reveals a significant gender disparity, with men comprising a substantially larger proportion of individuals involved in gun violence incidents compared to women.
+
+\
+
+From the third pie chart, a notable observation emerges: the number of individuals who remained unharmed slightly exceeds those who were harmed. 
+
+\
+
+```{r}
+
+## Visualization of monthly casualty rates on states plot
+
+
+time_series_state<-gun_data|>
+  group_by(state,date)|>
+  summarize(total_casualties = sum(n_injured+n_killed))
+  
+time_series_state<-time_series_state |> mutate(year = year(date)) |>
+  left_join(population_group, by = c("year","state"))|>
+  mutate(casualties_per_100k = (total_casualties/population) * 100000)
+```
+```{r,fig.height= 6, fig.width=11}
+sea_palette <- c("#005a70", "#0088a1", "#27a4f8", "#00d0d0", "#ffffff")
+
+time_series_state|>
+  ggplot(aes(x = date, y = casualties_per_100k))+
+  ylim(0,1)+
+  labs(
+    title = "Number of gun-related casualties between 2013 and 2018",
+  )+
+  geom_line(color = sea_palette[3]) + 
+  facet_geo(~state)+
+  theme(
+    plot.title = element_text(color = sea_palette[1], size = 14, face = "bold", margin = margin(b = 10)),
+    axis.title.y = element_text(color = sea_palette[2], size = 12, face = "bold"),
+    axis.text = element_text(color = sea_palette[4], size = 10),
+    panel.background = element_rect(fill = sea_palette[5]),
+    strip.background = element_rect(fill = sea_palette[3], color = "white"),
+    strip.text = element_text(color = "white", size = 10),
+    legend.position = "none" 
+  )
+```
+
+\
+
+The plots illustrate a consistent pattern aligning with the previous visualizations, where Washington D.C. exhibits notably higher monthly casualty rates compared to other regions.
+
+\
+
+* Code source for downloading maps: https://rpubs.com/dilernia/maps
+\
+```{r}
+
+### Making a leaflet plot
+
+ if(!file.exists("cb_2018_us_state_500k.zip")) {
+  download.file(url = "https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_state_500k.zip",
+              destfile = "cb_2018_us_state_500k.zip")
+}
+
+# # Create directory for geospatial files
+if(!dir.exists("GeoFiles")) {
+ dir.create("GeoFiles")
+ }
+
+ # Unzipping files
+ utils::unzip("cb_2018_us_state_500k.zip",
+              exdir = "GeoFiles")
+
+ #Loading the shapefiles
+state_shape <- st_read("GeoFiles//cb_2018_us_state_500k.shp",
+                       quiet = TRUE)
+```
+
+
+
+```{r}
+
+#calculating the rate of casualties 
+
+population_full <-population_group|>
+  group_by(state)|>
+  summarize(total_population = sum(population))
+
+```
+
+```{r}
+total_casualties<-gun_data |>
+  group_by(state)|>
+  summarize(total_casualties = sum(n_injured+n_killed))
+
+
+total_casualties<- total_casualties |>
+  left_join(population_full)
+  
+total_casualties<-total_casualties |>
+  mutate(casualty_rate = round((total_casualties/total_population)*100000))
+
+```
+
+```{r}
+merged_data <- left_join(state_shape, total_casualties,by = c("NAME"="state"))
+state_shape <- st_transform(state_shape, "+proj=longlat +datum=WGS84")
+```
+
+
+```{r map,fig.width=10}
+# Define the bins and color palette
+bins <- seq(0, 20, by = 3)
+paletteNum <- colorBin(palette = "Reds", 
+                       domain = merged_data$total_casualties, 
+                       bins = bins)
+
+labels <- merged_data |>
+  dplyr::mutate(labels = paste0("<strong>", stringr::str_to_title(NAME), "</strong><br/>",
+  "Casualty Rate: ", round(casualty_rate, 4)) |>
+  lapply(htmltools::HTML)) |> 
+  dplyr::pull(labels)
+
+# Create Leaflet map
+gun_violence_map <- leaflet()|>
+  addProviderTiles(providers$Stadia.StamenTonerLite,
+                   options = providerTileOptions(
+    id = "mapbox.light")) |>
+  setView(lng = -96.25, lat = 39.50, zoom = 3.5) |>
+  addPolygons(
+    data = state_shape,
+    color = 'black',
+    weight =  1,
+    fillOpacity = 0.9,
+    fillColor = ~paletteNum(merged_data$casualty_rate),
+    label = labels,
+    highlightOptions = highlightOptions(
+      weight = 3,  
+      color = "black",  
+      fillOpacity = 1  
+    )
+  ) |>
+  addLegend(
+    pal = paletteNum,
+    values = merged_data$total_casualties,
+    title = "Total Casualties per 100k",
+    position = "bottomleft"
+  )
+gun_violence_map
+
+```
+
+
+## 5. Monte Carlo Methods of Inference
+
+\
+
+We will employ the Monte Carlo simulation technique to estimate the total number of fatalities and injuries resulting from the gun violence incidents 
+\
+```{r}
+casualties_seen<-gun_data |>
+  group_by(state, year = year(date))|>
+  summarize(total_casualties = sum(n_injured+n_killed))
+
+casualties_seen <- casualties_seen  |>
+  left_join(population_full)
+  
+casualties_seen <- casualties_seen |>
+  mutate(casualty_rate = round((total_casualties/total_population)*100000))
+```
+
+Ho:There is no significant difference in the mean number of shootings between individuals residing in different states.
+
+Ha:There is a significant difference in the mean number of shootings between individuals residing in different states.
+
+
+```{r}
+data_subset <- casualties_seen|>
+  filter(year == 2016) |>
+  select(state,casualty_rate)
+
+# Set seed
+set.seed(123)
+
+calculate_test_statistic <- function(data){
+  data <- data |>
+    mutate(group = sample(c(1,2), n(), replace = TRUE))
+  
+  group1 <- data |>
+    filter(group == 1) |>
+    pull(casualty_rate)
+  
+  group2 <- data |>
+    filter(group == 2) |>
+    pull(casualty_rate)
+  
+  return(mean(group1) - mean(group2))
+}
+#Looking at the observed statistic
+observed_statistic <- calculate_test_statistic (data_subset)
+
+num_permutations <- 1000
+
+permutation_results <- replicate(num_permutations,{
+  #data_subset |>
+    calculate_test_statistic(data_subset)
+})
+
+null_distribution_plot <- ggplot() +
+  geom_density(aes(x = permutation_results,), fill = "skyblue", alpha = 0.7) +
+  geom_vline(xintercept = observed_statistic, color = "red", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = quantile(permutation_results, 0.95, na.rm = TRUE), linetype = "dashed", linewidth = 1) +
+  labs(title = "Permutation Test Null Distribution",
+       x = "Difference in means(Total Casualties)",
+       y = "Desity") +
+  scale_y_continuous(labels = scales::comma_format()) +
+  scale_x_continuous(labels = scales::comma_format()) +
+  theme_bw()
+
+print(null_distribution_plot)
+```
+
+```{r}
+#Calculating the p-value
+p_value <-mean(permutation_results >= observed_statistic)
+
+cat("p-value:", p_value,"\n")
+
+if(p_value < 0.05){
+  cat("The result is statistically significant. There is significant evidence to reject the null hypothesis")
+}else{
+  cat("The result is not statistically significant at 5% level. Fail to reject null hypothesis")
+}
+```
+
+
+```{r}
+total_casualties |>
+  ggplot(aes(x = total_casualties)) +
+  geom_histogram(color = "blue", fill ="red" ) +
+  scale_y_continuous(expand = expansion(mult = c(0,0.1))) +
+  labs(title = "Number casualties simulated in USA",
+       x = "Number of casualties",
+       y = "Casualty rate")
+```
+
+## 6. Bootstrap Method of Inference
+
+```{r}
+#Extract the relevant variable to conduct bootstrap
+variable_boot <- casualties_seen |>
+  filter(year == 2016) |>
+  pull(total_casualties)
+
+num_bootstraps <- 1000
+
+calculate_statistic <- function(data){
+  return((data))
+}
+
+# Carrying out bootstrap re-sampling
+bootstrap_result <- replicate(num_bootstraps,{
+  resample_data <- sample(variable_boot, replace = TRUE)
+  calculate_statistic(resample_data)
+})
+
+# Calculating the the upper bound and the lower bound
+
+lower_bound <- quantile(bootstrap_result, 0.025)
+upper_bound <- quantile(bootstrap_result, 0.975)
+
+# Creating bootstrap distribution
+bootstrap_distribution_plot <- ggplot() +
+  geom_density(aes(x = bootstrap_result), fill = "skyblue", alpha = 0.7) +
+  geom_vline(xintercept = lower_bound, linetype = "dashed", color = "red" ,linewidth = 1) +
+  geom_vline(xintercept = upper_bound, linetype = "dashed", color = "red" ,linewidth = 1) +
+  labs(title = "Bootstrap Distribution and 95% confidence Interval",
+       x = "Bootstrap Sample Median",
+       y = "Density")+
+  scale_y_continuous(labels = scales::comma_format())+
+  theme_bw()
+
+#Displaying the bootstrap distribution
+print(bootstrap_distribution_plot)
+```
+```{r}
+cat("The 95% bootstrap confidence interval for the median of the variable being investigated is :", "[",lower_bound, ",", upper_bound,"]" )
+```
+\
+
+From the observation it is right skewed because of casualty experienced in states such as District of Columbia, Illinois and Louisiana
+
+\
+
+## 7. Conclusion/ Main Takeaways
+
+The analysis of the gun violence dataset has revealed several significant findings and patterns;
+
+* Firstly, Washington D.C. and Illinois stand out as the regions with the highest rates of gun violence casualties, significantly surpassing other states across the nation. In contrast, Hawaii and Wyoming experienced relatively low rates of gun violence incidents.
+* The data also highlights notable patterns in the distribution of gun violence incidents. There is a noticeable spike in casualties during weekends, potentially due to increased availability of leisure time and social activities that may involve alcohol consumption or other risk-taking behaviors.
+* Additionally, the analysis reveals a relatively consistent number of casualties across different seasons, with a slight uptick observed during the summer months, possibly attributable to increased outdoor activities and social gatherings facilitated by warmer weather conditions.
+* Furthermore, the age group and gender distributions reveal the following trends: adults constitute the largest segment involved in gun violence incidents, significantly overshadowing other age groups. Similarly, men comprise a substantially larger proportion of individuals involved in gun violence incidents compared to women, highlighting a significant gender disparity.
+* Interestingly, the analysis also shows that the number of individuals who remained unharmed slightly exceeds those who were harmed in gun violence incidents
+
+\
+\
+
+The following are potential areas of study that our project did not cover:
+
+1. In-depth analysis of the underlying factors contributing to the higher rates of gun violence in Washington D.C. and Illinois, including socioeconomic, cultural, and policy-related aspects.
+
+2. Comparative analysis of gun violence patterns and contributing factors across different regions or states, to identify potential best practices or unique challenges that may inform tailored intervention strategies.
+
+3. Investigating neighborhood characteristics, such as socioeconomic status, access to resources, and community cohesion, to understand their influence on gun violence rates.
+
+\
+\
+
+## 8. Group contribution
+
+* Data Dictionary and Exploratory Data Analysis- Arnold Muiruri, Cyril Owuor
+* Data Cleaning
+  -> Merging Data set - Arnold Muiruri, Cyril Owuor
+  -> String Manipulation - Arnold Muiruri, Cyril Owuor
+* Exploratory Data Analysis -  Arnold Muiruri, Cyril Owuor
+* Monte Carlo Methods of Inference - Arnold Muiruri, Cyril Owuor 
+* Bootstrap Methods of Inference - Arnold Muiruri, Cyril Owuor
+* Conclusions -  Arnold Muiruri, Cyril Owuor
+
