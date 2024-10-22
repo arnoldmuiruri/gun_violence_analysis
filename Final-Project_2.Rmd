@@ -2,15 +2,15 @@
 title: "Final Project"
 author: "Arnold Muiruri , Cyril Owuor"
 date: "`r Sys.Date()`"
-output: 
-  rmdformats::html_clean:
-    toc: true
-    toc_float: true
+output: rmarkdown::github_document
+always_allow_html: true
+
 
 ---
 
 ```{r setup, include=FALSE, error = TRUE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.path = "README_figs/README-")
 ```
 \
 
