@@ -1,3 +1,5 @@
+[![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Farnoldmuiruri%2Fgun_violence_analysis&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=Views&edge_flat=false)](https://hits.seeyoufarm.com)
+
 # Gun Violence Analysis in America
 
 > A statistical analysis of gun violence patterns in the United States (2013-2018). Done together with Cyril Odiwuor (https://github.com/COdiwuor)
